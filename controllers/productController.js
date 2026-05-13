@@ -164,8 +164,14 @@ exports.updateProduct = async (req, res) => {
   try {
     const { images, size, price, discountPrice } = req.body;
 
-    // Validate and upload images if provided
-    let finalImages = images;
+    const existingProduct = await Product.findById(req.params.id);
+    if (!existingProduct) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Track if images are being updated
+    let finalImages = existingProduct.images;
+    let imagesUpdated = false;
     
     if (req.files && req.files.length > 0) {
       if (req.files.length > 8) {
@@ -179,14 +185,20 @@ exports.updateProduct = async (req, res) => {
         );
         const uploadResults = await Promise.all(uploadPromises);
         finalImages = uploadResults.map(result => result.secure_url);
+        imagesUpdated = true;
         console.log("✅ Updated images uploaded to Cloudinary:", finalImages);
       } catch (cloudinaryError) {
         console.error("❌ Cloudinary upload error:", cloudinaryError);
         return res.status(500).json({ message: 'Image upload to Cloudinary failed' });
       }
+    } else if (images !== undefined && images !== null) {
+      // If images are provided in body (not as files)
+      finalImages = Array.isArray(images) ? images : [images];
+      imagesUpdated = true;
     }
 
-    if (finalImages !== undefined) {
+    // Validate images only if they were changed
+    if (imagesUpdated) {
       if (!Array.isArray(finalImages)) {
         return res.status(400).json({ message: 'Images must be an array' });
       }
@@ -200,11 +212,6 @@ exports.updateProduct = async (req, res) => {
 
     if (size !== undefined && typeof size !== 'string') {
       return res.status(400).json({ message: 'Size must be a string' });
-    }
-
-    const existingProduct = await Product.findById(req.params.id);
-    if (!existingProduct) {
-      return res.status(404).json({ message: 'Product not found' });
     }
 
     const newPrice = price !== undefined ? Number(price) : existingProduct.price;
@@ -229,7 +236,7 @@ exports.updateProduct = async (req, res) => {
         ...(size !== undefined && { size }),
         ...(price !== undefined && { price: newPrice }),
         ...(discountPrice !== undefined && { discountPrice: newDiscountPrice }),
-        ...(finalImages && { images: finalImages })
+        ...(imagesUpdated && { images: finalImages })
       },
       { new: true }
     );
