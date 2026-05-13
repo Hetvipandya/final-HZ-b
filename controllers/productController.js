@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const fs = require('fs');
 const path = require('path');
+const { uploadToCloudinary } = require('../utils/uploadToCloudinary');
 
 const getBaseUrl = (req) => {
   if (req && req.headers && req.headers.host) {
@@ -20,6 +21,7 @@ exports.createProduct = async (req, res) => {
       productName,
       size,
       price,
+      originalPrice,
       discountPrice,
       rating,
       isActive,
@@ -30,20 +32,31 @@ exports.createProduct = async (req, res) => {
 
     let images = [];
 
+    // Upload files to Cloudinary
     if (req.files && req.files.length > 0) {
       if (req.files.length > 8) {
         return res.status(400).json({ message: 'Maximum 8 images allowed per product' });
       }
 
-      // Store local file paths
-      images = req.files.map(file => `/uploads/product-images/${file.filename}`);
+      try {
+        // Upload all images to Cloudinary in parallel
+        const uploadPromises = req.files.map(file => 
+          uploadToCloudinary(file.buffer, `product-${productName}-${Date.now()}-${Math.random()}`)
+        );
+        const uploadResults = await Promise.all(uploadPromises);
+        images = uploadResults.map(result => result.secure_url);
+        console.log("✅ Images uploaded to Cloudinary:", images);
+      } catch (cloudinaryError) {
+        console.error("❌ Cloudinary upload error:", cloudinaryError);
+        return res.status(500).json({ message: 'Image upload to Cloudinary failed' });
+      }
     } else if (req.body.images) {
       images = Array.isArray(req.body.images)
         ? req.body.images
         : [req.body.images];
     }
 
-    // Validate required fields
+    // Validate required fields 
     if (!categoryId) {
       return res.status(400).json({ message: 'Category ID is required' });
     }
@@ -151,15 +164,36 @@ exports.updateProduct = async (req, res) => {
   try {
     const { images, size, price, discountPrice } = req.body;
 
-    // Validate images if provided
-    if (images !== undefined) {
-      if (!Array.isArray(images)) {
+    // Validate and upload images if provided
+    let finalImages = images;
+    
+    if (req.files && req.files.length > 0) {
+      if (req.files.length > 8) {
+        return res.status(400).json({ message: 'Maximum 8 images allowed per product' });
+      }
+
+      try {
+        // Upload all new images to Cloudinary in parallel
+        const uploadPromises = req.files.map(file => 
+          uploadToCloudinary(file.buffer, `product-update-${Date.now()}-${Math.random()}`)
+        );
+        const uploadResults = await Promise.all(uploadPromises);
+        finalImages = uploadResults.map(result => result.secure_url);
+        console.log("✅ Updated images uploaded to Cloudinary:", finalImages);
+      } catch (cloudinaryError) {
+        console.error("❌ Cloudinary upload error:", cloudinaryError);
+        return res.status(500).json({ message: 'Image upload to Cloudinary failed' });
+      }
+    }
+
+    if (finalImages !== undefined) {
+      if (!Array.isArray(finalImages)) {
         return res.status(400).json({ message: 'Images must be an array' });
       }
-      if (images.length < 1) {
+      if (finalImages.length < 1) {
         return res.status(400).json({ message: 'At least 1 image is required' });
       }
-      if (images.length > 8) {
+      if (finalImages.length > 8) {
         return res.status(400).json({ message: 'Maximum 8 images allowed per product' });
       }
     }
@@ -194,7 +228,8 @@ exports.updateProduct = async (req, res) => {
         ...req.body,
         ...(size !== undefined && { size }),
         ...(price !== undefined && { price: newPrice }),
-        ...(discountPrice !== undefined && { discountPrice: newDiscountPrice })
+        ...(discountPrice !== undefined && { discountPrice: newDiscountPrice }),
+        ...(finalImages && { images: finalImages })
       },
       { new: true }
     );
