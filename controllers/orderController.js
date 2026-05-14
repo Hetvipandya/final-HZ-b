@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
-
+const Product = require('../models/Product');
+ 
 // ✅ Create Order
 exports.createOrder = async (req, res) => {
   try {
@@ -43,13 +44,71 @@ exports.createOrder = async (req, res) => {
   }
 };
 
+exports.removeOrderItem = async (req, res) => {
+  try {
+
+    const { id } = req.params;
+    const { productId } = req.body;
+
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // remove selected product
+    order.products = order.products.filter(
+      (item) => item.productId.toString() !== productId
+    );
+
+    // recalculate total
+    let totalPrice = 0;
+
+    for (const item of order.products) {
+
+      const product = await Product.findById(item.productId);
+
+      const price =
+        product.discountPrice || product.price;
+
+      totalPrice += price * item.quantity;
+    }
+
+    order.totalPrice = totalPrice;
+
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Item removed successfully",
+      order,
+    });
+
+  } catch (error) {
+
+    console.log(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+
 
 // ✅ Get All Orders
 exports.getAllOrders = async (req, res) => {
   try {
-    const orders = await Order.find()
-      .populate('userId', 'name email')
-      .populate('products.productId', 'productName price image');
+   const orders = await Order.find()
+  .populate("userId", "name email")
+  .populate(
+    "products.productId",
+    "productName price discountPrice image images description"
+  )
+  .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -70,7 +129,10 @@ exports.getUserOrders = async (req, res) => {
     const { userId } = req.params;
 
     const orders = await Order.find({ userId })
-      .populate('products.productId', 'productName price image')
+      .populate(
+  'products.productId',
+  'productName price discountPrice image images description'
+)
       .sort({ createdAt: -1 });
 
     res.status(200).json({
