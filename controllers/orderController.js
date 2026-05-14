@@ -152,8 +152,10 @@ exports.getUserOrders = async (req, res) => {
 exports.getSingleOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
-      .populate('userId', 'name email')
-      .populate('products.productId', 'productName price image description');
+     .populate(
+  'products.productId',
+  'productName price discountPrice image images description'
+);
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
