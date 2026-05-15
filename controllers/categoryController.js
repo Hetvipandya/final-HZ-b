@@ -54,11 +54,41 @@ exports.createCategory = async (req, res) => {
 // GET ALL CATEGORIES
 exports.getCategories = async (req, res) => {
   try {
+    // GET ONLY ACTIVE CATEGORIES
     const categories = await Category.find({ isActive: true });
-    return res.status(200).json({ success: true, data: categories });
+
+    // FORMAT DATA
+    const formattedCategories = categories.map((category) => ({
+      _id: category._id,
+      name: category.name,
+      slug: category.slug,
+      description: category.description,
+
+      // CLOUDINARY IMAGE URL
+      image: category.image?.url || "",
+
+      // OPTIONAL
+      public_id: category.image?.public_id || "",
+
+      isActive: category.isActive,
+      createdAt: category.createdAt,
+      updatedAt: category.updatedAt,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedCategories.length,
+      data: formattedCategories,
+    });
+
   } catch (error) {
     console.error("GET CATEGORIES ERROR:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+      error: error.message,
+    });
   }
 };
 
