@@ -54,24 +54,21 @@ exports.createCategory = async (req, res) => {
 // GET ALL CATEGORIES
 exports.getCategories = async (req, res) => {
   try {
+    // GET ONLY ACTIVE CATEGORIES
     const categories = await Category.find({ isActive: true });
 
+    // FORMAT DATA
     const formattedCategories = categories.map((category) => ({
       _id: category._id,
       name: category.name,
       slug: category.slug,
       description: category.description,
 
-      // HANDLE BOTH STRING & OBJECT
-      image:
-        typeof category.image === "string"
-          ? category.image
-          : category.image?.url || "",
+      // CLOUDINARY IMAGE URL
+      image: category.image?.url || "",
 
-      public_id:
-        typeof category.image === "object"
-          ? category.image?.public_id || ""
-          : "",
+      // OPTIONAL
+      public_id: category.image?.public_id || "",
 
       isActive: category.isActive,
       createdAt: category.createdAt,
