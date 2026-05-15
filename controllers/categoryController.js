@@ -58,22 +58,28 @@ exports.getCategories = async (req, res) => {
     const categories = await Category.find({ isActive: true });
 
     // FORMAT DATA
-    const formattedCategories = categories.map((category) => ({
-      _id: category._id,
-      name: category.name,
-      slug: category.slug,
-      description: category.description,
+  // FORMAT DATA
+const formattedCategories = categories.map((category) => ({
+  _id: category._id,
+  name: category.name,
+  slug: category.slug,
+  description: category.description,
 
-      // CLOUDINARY IMAGE URL
-      image: category.image?.url || "",
+  // HANDLE BOTH STRING & CLOUDINARY OBJECT
+  image:
+    typeof category.image === "string"
+      ? category.image
+      : category.image?.url || "",
 
-      // OPTIONAL
-      public_id: category.image?.public_id || "",
+  public_id:
+    typeof category.image === "object"
+      ? category.image?.public_id || ""
+      : "",
 
-      isActive: category.isActive,
-      createdAt: category.createdAt,
-      updatedAt: category.updatedAt,
-    }));
+  isActive: category.isActive,
+  createdAt: category.createdAt,
+  updatedAt: category.updatedAt,
+}));
 
     return res.status(200).json({
       success: true,
