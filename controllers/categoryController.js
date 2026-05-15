@@ -8,7 +8,7 @@ const {
 // CREATE CATEGORY
 exports.createCategory = async (req, res) => {
   try {
-    const { name, image, status } = req.body;
+    const { name, status } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -17,23 +17,47 @@ exports.createCategory = async (req, res) => {
       });
     }
 
-    const isActive = status === "Active" || status === true || status === "true";
-    let imagePath = image;
+    const isActive =
+      status === "Active" ||
+      status === true ||
+      status === "true";
 
+    let image = "";
+
+    // ================= CLOUDINARY UPLOAD =================
     if (req.file) {
-      imagePath = `/uploads/category-images/${req.file.filename}`;
+      try {
+        const uploadResult = await uploadToCloudinary(
+          req.file.buffer,
+          `category-${name}-${Date.now()}`
+        );
+
+        image = uploadResult.secure_url;
+
+        console.log("✅ Category image uploaded:", image);
+
+      } catch (cloudinaryError) {
+        console.error("❌ Cloudinary upload error:", cloudinaryError);
+
+        return res.status(500).json({
+          success: false,
+          message: "Image upload to Cloudinary failed",
+        });
+      }
+    } else if (req.body.image) {
+      image = req.body.image;
     }
 
-    if (!imagePath) {
+    if (!image) {
       return res.status(400).json({
         success: false,
-        message: "Image is required (upload file or provide image path)",
+        message: "Image is required",
       });
     }
 
     const category = await Category.create({
       name,
-      image: imagePath,
+      image,
       isActive,
     });
 
@@ -42,8 +66,10 @@ exports.createCategory = async (req, res) => {
       message: "Category created successfully",
       data: category,
     });
+
   } catch (error) {
     console.error("CREATE CATEGORY ERROR:", error);
+
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -115,25 +141,59 @@ exports.getSingleCategory = async (req, res) => {
 // UPDATE CATEGORY
 exports.updateCategory = async (req, res) => {
   try {
-    const { name, status, image } = req.body;
-    const isActive = status === "Active" || status === true || status === "true";
+    const { name, status } = req.body;
+
     const updateData = {};
 
-    if (name !== undefined) updateData.name = name;
-    if (status !== undefined) updateData.isActive = isActive;
-    if (req.file) {
-      updateData.image = `/uploads/category-images/${req.file.filename}`;
-    } else if (image !== undefined) {
-      updateData.image = image;
+    if (name !== undefined) {
+      updateData.name = name;
     }
 
-    const category = await Category.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-      runValidators: true,
-    });
+    if (status !== undefined) {
+      updateData.isActive =
+        status === "Active" ||
+        status === true ||
+        status === "true";
+    }
+
+    // ================= CLOUDINARY IMAGE UPDATE =================
+    if (req.file) {
+      try {
+        const uploadResult = await uploadToCloudinary(
+          req.file.buffer,
+          `category-${name || "image"}-${Date.now()}`
+        );
+
+        updateData.image = uploadResult.secure_url;
+
+        console.log("✅ Category image updated:", updateData.image);
+
+      } catch (cloudinaryError) {
+        console.error("❌ Cloudinary upload error:", cloudinaryError);
+
+        return res.status(500).json({
+          success: false,
+          message: "Image upload to Cloudinary failed",
+        });
+      }
+    } else if (req.body.image) {
+      updateData.image = req.body.image;
+    }
+
+    const category = await Category.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!category) {
-      return res.status(404).json({ success: false, message: "Category not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Category not found",
+      });
     }
 
     return res.status(200).json({
@@ -141,9 +201,14 @@ exports.updateCategory = async (req, res) => {
       message: "Category updated successfully",
       data: category,
     });
+
   } catch (error) {
     console.error("UPDATE CATEGORY ERROR:", error);
-    return res.status(500).json({ success: false, message: "Server error" });
+
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 

@@ -1,7 +1,6 @@
 const express = require("express");
 const multer = require("multer");
 const path = require('path');
-const fs = require('fs');
 const router = express.Router();
 
 const {
@@ -12,25 +11,11 @@ const {
   deleteCategory,
 } = require("../controllers/categoryController");
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../uploads/category-images');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+const { upload } = require("../utils/uploadToCloudinary");
 
-// Configure Multer for disk storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({
-  storage: storage,
+// Configure multer for memory storage (file stays in buffer)
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB per file
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
@@ -60,7 +45,7 @@ const handleUpload = (uploadMiddleware, handler) => (req, res, next) => {
 // CREATE
 router.post(
   "/create",
-  handleUpload(upload.single("image"), createCategory)
+  handleUpload(memoryUpload.single("image"), createCategory)
 );
 
 // READ
@@ -70,7 +55,7 @@ router.get("/:id", getSingleCategory);
 // UPDATE
 router.put(
   "/:id",
-  handleUpload(upload.single("image"), updateCategory)
+  handleUpload(memoryUpload.single("image"), updateCategory)
 );
 
 // DELETE
